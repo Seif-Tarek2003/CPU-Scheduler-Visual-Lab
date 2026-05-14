@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CPU Scheduler Visual Lab</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&family=Syne:wght@400;600;800&display=swap');
+
+  :root {
+    --bg:#0a0c10; --surface:#111318; --panel:#161b22; --border:#21262d;
+    --accent:#58a6ff; --accent2:#3fb950; --accent3:#d2a8ff; --accent4:#ffa657;
+    --warn:#f85149; --text:#e6edf3; --muted:#8b949e;
+    --c-fcfs:#58a6ff; --c-rr:#3fb950; --c-sjf:#d2a8ff; --c-srtf:#ffa657;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'JetBrains Mono',monospace;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;}
+
+  header{padding:18px 28px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:14px;background:var(--surface);position:sticky;top:0;z-index:100;box-shadow:0 1px 20px rgba(0,0,0,.5);}
+  .logo-icon{width:36px;height:36px;background:linear-gradient(135deg,#58a6ff,#d2a8ff);border-radius:9px;display:grid;place-items:center;font-size:18px;flex-shrink:0;box-shadow:0 0 16px rgba(88,166,255,.4);}
+  header h1{font-family:'Syne',sans-serif;font-size:1.2rem;font-weight:800;}
+  header h1 span{color:var(--accent);}
+  header p{font-size:.68rem;color:var(--muted);margin-top:1px;}
+  .header-right{margin-left:auto;display:flex;gap:8px;align-items:center;}
+  .badge{font-size:.62rem;background:var(--panel);border:1px solid var(--border);padding:3px 9px;border-radius:20px;color:var(--muted);}
+  .badge.live{border-color:var(--accent2);color:var(--accent2);}
+
+  .app{display:grid;grid-template-columns:300px 1fr;min-height:calc(100vh - 73px);}
+
+  .sidebar{background:var(--surface);border-right:1px solid var(--border);padding:20px 16px;display:flex;flex-direction:column;gap:20px;overflow-y:auto;}
+  .section-label{font-size:.62rem;font-weight:700;letter-spacing:.12em;color:var(--muted);text-transform:uppercase;margin-bottom:7px;}
+
+  .process-table{width:100%;border-collapse:collapse;font-size:.76rem;}
+  .process-table th{text-align:left;color:var(--muted);font-weight:400;padding:3px 7px;border-bottom:1px solid var(--border);font-size:.65rem;text-transform:uppercase;letter-spacing:.08em;}
+  .process-table td{padding:4px 7px;border-bottom:1px solid rgba(33,38,45,.6);}
+  .process-table input{background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text);font-family:inherit;font-size:.76rem;width:48px;padding:2px 5px;text-align:center;transition:border-color .2s;}
+  .process-table input:focus{outline:none;border-color:var(--accent);}
+  .pid-dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px;vertical-align:middle;}
+
+  .btn-row{display:flex;gap:8px;}
+  .btn{flex:1;padding:7px 10px;border:none;border-radius:8px;font-family:inherit;font-size:.76rem;font-weight:600;cursor:pointer;transition:all .18s;}
+  .btn-primary{background:linear-gradient(135deg,#58a6ff,#6e56cf);color:#fff;box-shadow:0 0 12px rgba(88,166,255,.3);}
+  .btn-primary:hover{transform:translateY(-1px);box-shadow:0 0 20px rgba(88,166,255,.5);}
+  .btn-secondary{background:var(--panel);color:var(--muted);border:1px solid var(--border);}
+  .btn-secondary:hover{color:var(--text);}
+  .btn-add{background:transparent;color:var(--accent2);border:1px dashed var(--accent2);padding:5px 10px;font-size:.7rem;border-radius:6px;cursor:pointer;font-family:inherit;transition:all .18s;width:100%;}
+  .btn-add:hover{background:rgba(63,185,80,.1);}
+
+  .algo-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;}
+  .algo-card{border:1px solid var(--border);border-radius:9px;padding:9px;cursor:pointer;transition:all .2s;background:var(--panel);position:relative;overflow:hidden;user-select:none;}
+  .algo-card::before{content:'';position:absolute;inset:0;opacity:0;transition:opacity .2s;background:radial-gradient(circle at 50% 0%,var(--card-color,#58a6ff22),transparent 70%);}
+  .algo-card.active{border-color:var(--card-color,var(--accent));}
+  .algo-card.active::before{opacity:1;}
+  .algo-card .name{font-size:.73rem;font-weight:700;margin-bottom:2px;}
+  .algo-card .desc{font-size:.6rem;color:var(--muted);}
+  .algo-card input[type=checkbox]{display:none;}
+
+  .quantum-row{display:flex;align-items:center;gap:8px;font-size:.76rem;}
+  .quantum-row label{color:var(--muted);white-space:nowrap;}
+  .quantum-row input{background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:3px 7px;font-family:inherit;font-size:.76rem;width:55px;text-align:center;}
+  .quantum-row input:focus{outline:none;border-color:var(--accent4);}
+
+  .main{padding:22px 26px;overflow-y:auto;display:flex;flex-direction:column;gap:22px;}
+
+  .tabs{display:flex;gap:3px;border-bottom:1px solid var(--border);margin-bottom:18px;}
+  .tab{padding:7px 14px;font-size:.72rem;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;color:var(--muted);transition:all .18s;background:none;border-top:none;border-left:none;border-right:none;font-family:inherit;}
+  .tab.active{color:var(--text);border-bottom-color:var(--accent);}
+  .tab:hover:not(.active){color:var(--text);}
+  .tab-pane{display:none;}
+  .tab-pane.active{display:block;}
+
+  .gantt-row{margin-bottom:14px;}
+  .gantt-algo-label{font-size:.68rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:5px;display:flex;align-items:center;gap:8px;}
+  .gantt-canvas-wrap{border-radius:7px;overflow:hidden;border:1px solid var(--border);background:var(--panel);}
+  canvas.gantt{display:block;}
+
+  .stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
+  .stat-card{background:var(--panel);border:1px solid var(--border);border-radius:11px;padding:14px 16px;position:relative;overflow:hidden;transition:transform .2s;}
+  .stat-card:hover{transform:translateY(-2px);}
+  .stat-card::after{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--card-color,var(--accent));box-shadow:0 0 8px var(--card-color,var(--accent));}
+  .stat-algo{font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--card-color,var(--accent));margin-bottom:7px;}
+  .stat-val{font-family:'Syne',sans-serif;font-size:1.7rem;font-weight:800;}
+  .stat-label{font-size:.65rem;color:var(--muted);margin-top:2px;}
+  .stat-best{font-size:.6rem;color:var(--accent2);margin-top:4px;}
+
+  .comp-title{font-family:'Syne',sans-serif;font-weight:700;font-size:.95rem;margin-bottom:12px;}
+  .comp-bars{display:flex;flex-direction:column;gap:9px;}
+  .comp-bar-row{display:flex;align-items:center;gap:10px;}
+  .comp-bar-label{width:46px;font-size:.7rem;font-weight:700;text-transform:uppercase;}
+  .comp-bar-track{flex:1;height:20px;background:var(--panel);border-radius:5px;overflow:hidden;border:1px solid var(--border);}
+  .comp-bar-fill{height:100%;border-radius:5px;display:flex;align-items:center;padding-left:7px;font-size:.65rem;font-weight:700;color:#fff;transition:width 0.8s cubic-bezier(.4,0,.2,1);width:0%;}
+  .comp-bar-val{width:50px;font-size:.7rem;text-align:right;color:var(--muted);}
+
+  .results-table-wrap{overflow-x:auto;}
+  .results-table{width:100%;border-collapse:collapse;font-size:.75rem;}
+  .results-table th{text-align:left;color:var(--muted);font-weight:400;padding:7px 10px;border-bottom:1px solid var(--border);font-size:.65rem;text-transform:uppercase;letter-spacing:.08em;}
+  .results-table td{padding:7px 10px;border-bottom:1px solid rgba(33,38,45,.5);}
+  .results-table tr:hover td{background:rgba(255,255,255,.02);}
+  .pill{display:inline-block;padding:2px 7px;border-radius:20px;font-size:.63rem;font-weight:700;}
+
+  .log-box{background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:10px 14px;font-size:.7rem;line-height:1.9;max-height:150px;overflow-y:auto;color:var(--muted);}
+  .log-box span.ts{color:var(--accent);}
+  .log-box span.pid{color:var(--text);font-weight:700;}
+
+  .empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;height:220px;color:var(--muted);gap:10px;text-align:center;}
+  .empty-state .icon{font-size:2.2rem;opacity:.3;}
+  .empty-state p{font-size:.78rem;max-width:240px;line-height:1.5;}
+
+  .info-chip{display:inline-flex;align-items:center;gap:4px;font-size:.62rem;background:var(--panel);border:1px solid var(--border);border-radius:5px;padding:2px 7px;color:var(--muted);}
+  .separator{border:none;border-top:1px solid var(--border);}
+  ::-webkit-scrollbar{width:5px;height:5px;}
+  ::-webkit-scrollbar-track{background:transparent;}
+  ::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+  .fade-in{animation:fadeIn .3s ease forwards;}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo-icon">⚙</div>
+  <div>
+    <h1>CPU Scheduler <span>Visual Lab</span></h1>
+    <p>Interactive simulation · FCFS · Round Robin · SJF · SRTF</p>
+  </div>
+  <div class="header-right">
+    <span class="badge">OS Simulator</span>
+    <span class="badge live" id="status-badge">Ready</span>
+  </div>
+</header>
+
+<div class="app">
+  <aside class="sidebar">
+    <div>
+      <div class="section-label">Processes</div>
+      <table class="process-table">
+        <thead><tr><th>PID</th><th>Arrive</th><th>Burst</th><th></th></tr></thead>
+        <tbody id="proc-body"></tbody>
+      </table>
+      <div style="margin-top:9px;">
+        <button class="btn-add" onclick="addProcess()">+ Add process</button>
+      </div>
+    </div>
+    <hr class="separator">
+    <div>
+      <div class="section-label">Algorithms</div>
+      <div class="algo-grid" id="algo-grid">
+        <label class="algo-card active" style="--card-color:var(--c-fcfs)">
+          <input type="checkbox" value="fcfs" checked>
+          <div class="name" style="color:var(--c-fcfs)">FCFS</div>
+          <div class="desc">First Come First Serve</div>
+        </label>
+        <label class="algo-card active" style="--card-color:var(--c-rr)">
+          <input type="checkbox" value="rr" checked>
+          <div class="name" style="color:var(--c-rr)">RR</div>
+          <div class="desc">Round Robin</div>
+        </label>
+        <label class="algo-card active" style="--card-color:var(--c-sjf)">
+          <input type="checkbox" value="sjf" checked>
+          <div class="name" style="color:var(--c-sjf)">SJF</div>
+          <div class="desc">Shortest Job First</div>
+        </label>
+        <label class="algo-card active" style="--card-color:var(--c-srtf)">
+          <input type="checkbox" value="srtf" checked>
+          <div class="name" style="color:var(--c-srtf)">SRTF</div>
+          <div class="desc">Shortest Remaining Time</div>
+        </label>
+      </div>
+    </div>
+    <div class="quantum-row">
+      <label>RR Quantum:</label>
+      <input type="number" id="quantum" value="2" min="1" max="20">
+    </div>
+    <hr class="separator">
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="simulate()">▶ Simulate</button>
+      <button class="btn btn-secondary" onclick="resetAll()">↺ Reset</button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('gantt',this)">Gantt Charts</button>
+      <button class="tab" onclick="switchTab('stats',this)">Statistics</button>
+      <button class="tab" onclick="switchTab('log',this)">Context Log</button>
+      <button class="tab" onclick="switchTab('about',this)">About</button>
+    </div>
+
+    <div class="tab-pane active" id="tab-gantt">
+      <div id="gantt-container">
+        <div class="empty-state"><div class="icon">🖥</div><p>Configure processes and hit <strong>Simulate</strong>.</p></div>
+      </div>
+    </div>
+    <div class="tab-pane" id="tab-stats">
+      <div id="stats-container">
+        <div class="empty-state"><div class="icon">📊</div><p>Run a simulation first to see metrics.</p></div>
+      </div>
+    </div>
+    <div class="tab-pane" id="tab-log">
+      <div id="log-container">
+        <div class="empty-state"><div class="icon">📋</div><p>Context switch logs appear here after simulation.</p></div>
+      </div>
+    </div>
+    <div class="tab-pane" id="tab-about">
+      <div style="max-width:620px;line-height:1.8;font-size:.8rem;color:var(--muted)">
+        <h3 style="font-family:Syne,sans-serif;color:var(--text);margin-bottom:12px">Algorithm Reference</h3>
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div><span style="color:var(--c-fcfs);font-weight:700">FCFS</span> — Non-preemptive. Processes execute in arrival order. Simple but can cause the convoy effect.</div>
+          <div><span style="color:var(--c-rr);font-weight:700">Round Robin</span> — Preemptive. Each process gets a fixed time quantum. Ideal for time-sharing systems.</div>
+          <div><span style="color:var(--c-sjf);font-weight:700">SJF</span> — Non-preemptive. Picks the shortest burst from the ready queue. Optimal average wait for non-preemptive.</div>
+          <div><span style="color:var(--c-srtf);font-weight:700">SRTF</span> — Preemptive SJF. Preempts on every new arrival if shorter. Globally optimal average waiting time.</div>
+        </div>
+        <h3 style="font-family:Syne,sans-serif;color:var(--text);margin:18px 0 12px">Metrics</h3>
+        <ul style="list-style:none;display:flex;flex-direction:column;gap:6px">
+          <li><span style="color:var(--text)">Turnaround</span> = Finish − Arrival</li>
+          <li><span style="color:var(--text)">Waiting</span> = Turnaround − Burst</li>
+          <li><span style="color:var(--text)">Response</span> = First CPU − Arrival</li>
+        </ul>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+const PROC_COLORS=['#ff6b6b','#ffd93d','#6bcb77','#4d96ff','#c77dff','#f4845f','#02c39a','#f72585'];
+const ALGO_COLORS={fcfs:'#58a6ff',rr:'#3fb950',sjf:'#d2a8ff',srtf:'#ffa657'};
+
+let processes=[
+  {pid:'P1',arrival:0,burst:8},{pid:'P2',arrival:1,burst:4},
+  {pid:'P3',arrival:2,burst:9},{pid:'P4',arrival:3,burst:5},{pid:'P5',arrival:4,burst:2}
+];
+let pidCounter=6;
+
+function renderTable(){
+  const tbody=document.getElementById('proc-body');
+  tbody.innerHTML='';
+  processes.forEach((p,i)=>{
+    const color=PROC_COLORS[i%PROC_COLORS.length];
+    const tr=document.createElement('tr');
+    tr.innerHTML=`
+      <td><span class="pid-dot" style="background:${color}"></span>${p.pid}</td>
+      <td><input type="number" value="${p.arrival}" min="0" max="100" onchange="processes[${i}].arrival=+this.value"/></td>
+      <td><input type="number" value="${p.burst}" min="1" max="100" onchange="processes[${i}].burst=+this.value"/></td>
+      <td><button onclick="removeProcess(${i})" style="background:none;border:none;color:#f85149;cursor:pointer;font-size:.9rem;padding:0 3px">×</button></td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function addProcess(){
+  if(processes.length>=8)return;
+  processes.push({pid:`P${pidCounter++}`,arrival:0,burst:5});
+  renderTable();
+}
+function removeProcess(i){ processes.splice(i,1); renderTable(); }
+
+function resetAll(){
+  processes=[
+    {pid:'P1',arrival:0,burst:8},{pid:'P2',arrival:1,burst:4},
+    {pid:'P3',arrival:2,burst:9},{pid:'P4',arrival:3,burst:5},{pid:'P5',arrival:4,burst:2}
+  ];
+  pidCounter=6; renderTable();
+  ['gantt','stats','log'].forEach(t=>{
+    const icons={gantt:'🖥',stats:'📊',log:'📋'};
+    const msgs={gantt:'Configure processes and hit <strong>Simulate</strong>.',stats:'Run a simulation first.',log:'Context switch logs appear here.'};
+    document.getElementById(`${t}-container`).innerHTML=`<div class="empty-state"><div class="icon">${icons[t]}</div><p>${msgs[t]}</p></div>`;
+  });
+  document.getElementById('status-badge').textContent='Ready';
+}
+
+// ── SCHEDULERS ──────────────────────────────────────────────
+function cloneProcs(){ return processes.map(p=>({...p,remaining:p.burst,start:-1,finish:-1})); }
+
+function scheduleFCFS(procs){
+  const sorted=[...procs].sort((a,b)=>a.arrival-b.arrival||a.pid.localeCompare(b.pid));
+  const log=[]; let clock=0;
+  sorted.forEach((p,i)=>{
+    if(clock<p.arrival)clock=p.arrival;
+    p.start=clock; log.push({t:clock,pid:p.pid});
+    clock+=p.burst; p.finish=clock;
+    p.color=PROC_COLORS[procs.findIndex(x=>x.pid===p.pid)%PROC_COLORS.length];
+  });
+  return buildResult(sorted,log,procs);
+}
+
+function scheduleRR(procs,quantum){
+  const ps=procs.map((p,i)=>({...p,remaining:p.burst,start:-1,finish:-1,color:PROC_COLORS[i%PROC_COLORS.length]}));
+  const sorted=[...ps].sort((a,b)=>a.arrival-b.arrival);
+  const log=[],gantt=[]; let clock=0,lastPid=null;
+  const queue=[]; let ai=0;
+  const enqueue=()=>{ while(ai<sorted.length&&sorted[ai].arrival<=clock){ if(!queue.includes(sorted[ai]))queue.push(sorted[ai]); ai++; }};
+  enqueue();
+  while(true){
+    if(!queue.length){ const nxt=ps.filter(p=>p.remaining>0).sort((a,b)=>a.arrival-b.arrival)[0]; if(!nxt)break; clock=nxt.arrival; enqueue(); }
+    const p=queue.shift(); if(!p)break;
+    if(p.start===-1)p.start=clock;
+    if(p.pid!==lastPid){log.push({t:clock,pid:p.pid});lastPid=p.pid;}
+    const run=Math.min(quantum,p.remaining);
+    gantt.push({pid:p.pid,start:clock,end:clock+run,color:p.color});
+    p.remaining-=run; clock+=run; enqueue();
+    if(p.remaining>0){queue.push(p);lastPid=null;}
+    else{p.finish=clock;}
+  }
+  return buildResult(ps,log,procs,gantt);
+}
+
+function scheduleSJF(procs){
+  const ps=procs.map((p,i)=>({...p,start:-1,finish:-1,scheduled:false,color:PROC_COLORS[i%PROC_COLORS.length]}));
+  const log=[]; let clock=0,done=0;
+  while(done<ps.length){
+    const ready=ps.filter(p=>!p.scheduled&&p.arrival<=clock);
+    if(!ready.length){clock=Math.min(...ps.filter(p=>!p.scheduled).map(p=>p.arrival));continue;}
+    const p=ready.reduce((a,b)=>a.burst<b.burst||(a.burst===b.burst&&a.arrival<b.arrival)?a:b);
+    p.scheduled=true; p.start=clock; log.push({t:clock,pid:p.pid});
+    clock+=p.burst; p.finish=clock; done++;
+  }
+  return buildResult(ps,log,procs);
+}
+
+function scheduleSRTF(procs){
+  const ps=procs.map((p,i)=>({...p,remaining:p.burst,start:-1,finish:-1,color:PROC_COLORS[i%PROC_COLORS.length]}));
+  const sorted=[...ps].sort((a,b)=>a.arrival-b.arrival);
+  const log=[],gantt=[]; let clock=0,done=0,current=null;
+  while(done<ps.length){
+    const arrived=ps.filter(p=>p.remaining>0&&p.arrival<=clock);
+    if(!arrived.length){clock=Math.min(...ps.filter(p=>p.remaining>0).map(p=>p.arrival));continue;}
+    const best=arrived.reduce((a,b)=>a.remaining<b.remaining||(a.remaining===b.remaining&&a.arrival<b.arrival)?a:b);
+    if(best!==current){log.push({t:clock,pid:best.pid});current=best;}
+    if(best.start===-1)best.start=clock;
+    const nextArr=Math.min(...ps.filter(p=>p.remaining>0&&p.arrival>clock).map(p=>p.arrival).concat([Infinity]));
+    const runUntil=Math.min(clock+best.remaining,nextArr);
+    gantt.push({pid:best.pid,start:clock,end:runUntil,color:best.color});
+    best.remaining-=(runUntil-clock); clock=runUntil;
+    if(best.remaining===0){best.finish=clock;done++;current=null;}
+  }
+  return buildResult(ps,log,procs,gantt);
+}
+
+function buildResult(ps,log,original,ganttBlocks){
+  const data=ps.map(p=>({pid:p.pid,arrival:p.arrival,burst:p.burst,start:p.start,finish:p.finish,
+    wait:p.finish-p.arrival-p.burst,turnaround:p.finish-p.arrival,response:p.start-p.arrival,color:p.color}));
+  if(!ganttBlocks)ganttBlocks=data.map(p=>({pid:p.pid,start:p.start,end:p.finish,color:p.color}));
+  return{data,log,ganttBlocks,avgWait:data.reduce((s,p)=>s+p.wait,0)/data.length,avgTurnaround:data.reduce((s,p)=>s+p.turnaround,0)/data.length};
+}
+
+// ── SIMULATE ────────────────────────────────────────────────
+function simulate(){
+  if(!processes.length)return;
+  const quantum=+document.getElementById('quantum').value||2;
+  const active=[...document.querySelectorAll('#algo-grid input:checked')].map(c=>c.value);
+  if(!active.length)return;
+  document.getElementById('status-badge').textContent='Running...';
+  const results={};
+  if(active.includes('fcfs'))results.fcfs=scheduleFCFS(cloneProcs());
+  if(active.includes('rr'))results.rr=scheduleRR(cloneProcs(),quantum);
+  if(active.includes('sjf'))results.sjf=scheduleSJF(cloneProcs());
+  if(active.includes('srtf'))results.srtf=scheduleSRTF(cloneProcs());
+  renderGantt(results,active);
+  renderStats(results,active);
+  renderLog(results,active);
+  document.getElementById('status-badge').textContent='Done ✓';
+}
+
+// ── GANTT ────────────────────────────────────────────────────
+function renderGantt(results,active){
+  const container=document.getElementById('gantt-container');
+  container.innerHTML='';
+  const maxTime=Math.max(...active.map(a=>Math.max(...results[a].ganttBlocks.map(b=>b.end))));
+  active.forEach(algo=>{
+    const div=document.createElement('div');
+    div.className='gantt-row fade-in';
+    div.innerHTML=`<div class="gantt-algo-label"><span style="color:${ALGO_COLORS[algo]}">${algo.toUpperCase()}</span><span class="info-chip">avg wait: ${results[algo].avgWait.toFixed(2)}</span></div><div class="gantt-canvas-wrap"><canvas class="gantt" id="g-${algo}" height="54"></canvas></div>`;
+    container.appendChild(div);
+    setTimeout(()=>{
+      const c=document.getElementById(`g-${algo}`);
+      if(!c)return;
+      c.width=container.clientWidth-4;
+      drawGantt(c,results[algo].ganttBlocks,maxTime,ALGO_COLORS[algo]);
+    },30);
+  });
+}
+
+function drawGantt(canvas,blocks,maxTime,algoColor){
+  const ctx=canvas.getContext('2d');
+  const W=canvas.width,H=canvas.height;
+  const PL=38,PR=8,PT=5,PB=18;
+  const iW=W-PL-PR,iH=H-PT-PB;
+  const sc=iW/maxTime;
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='#161b22'; ctx.fillRect(0,0,W,H);
+  // grid
+  ctx.strokeStyle='rgba(33,38,45,0.9)'; ctx.lineWidth=1;
+  for(let t=0;t<=maxTime;t++){const x=PL+t*sc;ctx.beginPath();ctx.moveTo(x,PT);ctx.lineTo(x,H-PB);ctx.stroke();}
+  // blocks
+  blocks.forEach(b=>{
+    const x=PL+b.start*sc,w=(b.end-b.start)*sc,y=PT,h=iH;
+    ctx.fillStyle=b.color+'2e'; ctx.fillRect(x,y,w,h);
+    ctx.strokeStyle=b.color; ctx.lineWidth=1.5; ctx.strokeRect(x+.75,y+.75,w-1.5,h-1.5);
+    if(w>18){ctx.fillStyle=b.color;ctx.font='bold 10px JetBrains Mono,monospace';ctx.textAlign='center';ctx.fillText(b.pid,x+w/2,y+h/2+4);}
+  });
+  // axis
+  ctx.fillStyle='#8b949e'; ctx.font='8px JetBrains Mono,monospace'; ctx.textAlign='center';
+  const step=Math.ceil(maxTime/18);
+  for(let t=0;t<=maxTime;t+=step){ctx.fillText(t,PL+t*sc,H-2);}
+  ctx.fillText(maxTime,PL+maxTime*sc,H-2);
+  ctx.save();ctx.translate(12,PT+iH/2);ctx.rotate(-Math.PI/2);ctx.fillStyle='#8b949e';ctx.font='8px JetBrains Mono,monospace';ctx.textAlign='center';ctx.fillText('CPU',0,0);ctx.restore();
+}
+
+// ── STATS ────────────────────────────────────────────────────
+function renderStats(results,active){
+  const container=document.getElementById('stats-container');
+  container.innerHTML='';
+  const best=active.reduce((a,b)=>results[a].avgWait<results[b].avgWait?a:b);
+  const grid=document.createElement('div'); grid.className='stats-grid';
+  grid.innerHTML=active.map(algo=>`<div class="stat-card fade-in" style="--card-color:${ALGO_COLORS[algo]}"><div class="stat-algo">${algo.toUpperCase()}</div><div class="stat-val">${results[algo].avgWait.toFixed(2)}</div><div class="stat-label">Avg Waiting Time</div>${algo===best?'<div class="stat-best">✓ Best</div>':''}</div>`).join('');
+  container.appendChild(grid);
+
+  const maxWait=Math.max(...active.map(a=>results[a].avgWait));
+  const compDiv=document.createElement('div'); compDiv.style.marginTop='20px';
+  compDiv.innerHTML=`<div class="comp-title">Waiting Time Comparison</div><div class="comp-bars">${active.map(algo=>{const pct=(results[algo].avgWait/maxWait*100).toFixed(1);return`<div class="comp-bar-row"><div class="comp-bar-label" style="color:${ALGO_COLORS[algo]}">${algo}</div><div class="comp-bar-track"><div class="comp-bar-fill" data-pct="${pct}" style="background:${ALGO_COLORS[algo]};width:0%">${results[algo].avgWait.toFixed(2)}</div></div><div class="comp-bar-val">${results[algo].avgWait.toFixed(2)}</div></div>`;}).join('')}</div>`;
+  container.appendChild(compDiv);
+  setTimeout(()=>{ document.querySelectorAll('.comp-bar-fill').forEach(el=>el.style.width=el.dataset.pct+'%'); },80);
+
+  const tableDiv=document.createElement('div'); tableDiv.style.marginTop='20px';
+  active.forEach(algo=>{
+    tableDiv.innerHTML+=`<div style="margin-top:16px"><div class="gantt-algo-label"><span style="color:${ALGO_COLORS[algo]}">${algo.toUpperCase()}</span></div><div class="results-table-wrap"><table class="results-table"><thead><tr><th>PID</th><th>Arrive</th><th>Burst</th><th>Start</th><th>Finish</th><th>Wait</th><th>Turnaround</th><th>Response</th></tr></thead><tbody>${results[algo].data.map(p=>`<tr><td><span class="pid-dot" style="background:${p.color}"></span>${p.pid}</td><td>${p.arrival}</td><td>${p.burst}</td><td>${p.start}</td><td>${p.finish}</td><td><span class="pill" style="background:${ALGO_COLORS[algo]}22;color:${ALGO_COLORS[algo]}">${p.wait}</span></td><td>${p.turnaround}</td><td>${p.response}</td></tr>`).join('')}</tbody></table></div></div>`;
+  });
+  container.appendChild(tableDiv);
+}
+
+// ── LOG ─────────────────────────────────────────────────────
+function renderLog(results,active){
+  const container=document.getElementById('log-container'); container.innerHTML='';
+  active.forEach(algo=>{
+    const div=document.createElement('div'); div.style.marginBottom='18px';
+    div.innerHTML=`<div class="gantt-algo-label" style="margin-bottom:7px"><span style="color:${ALGO_COLORS[algo]}">${algo.toUpperCase()}</span><span class="info-chip">${results[algo].log.length} context switches</span></div><div class="log-box">${results[algo].log.map(e=>`<span class="ts">(${e.t}</span>, <span class="pid">${e.pid}</span>)  `).join('')}<br><br><strong style="color:var(--text)">Average waiting time ${results[algo].avgWait.toFixed(2)}</strong></div>`;
+    container.appendChild(div);
+  });
+}
+
+// ── TABS + ALGO CARDS ────────────────────────────────────────
+function switchTab(name,btn){
+  document.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  btn.classList.add('active');
+}
+document.querySelectorAll('.algo-card').forEach(card=>{
+  card.addEventListener('click',()=>{
+    const cb=card.querySelector('input');
+    cb.checked=!cb.checked;
+    card.classList.toggle('active',cb.checked);
+  });
+});
+
+renderTable();
+</script>
+</body>
+</html>
